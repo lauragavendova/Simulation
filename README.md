@@ -209,7 +209,8 @@ xacro; `robot.urdf.xacro` (v1) and its macros and meshes are unchanged.
   measured from its flat faces (exactly 10.0° down) and moved into the joint;
   the right suspension bracket is not a copy of the left one and is taken from
   the assembly; the Livox part file was empty, its mesh is taken from the
-  assembly (without materials, coloured dark grey); one degenerate triangle
+  assembly (without materials, coloured silver with a dark window); the camera
+  holder and the suspension brackets are recoloured black (grey in the CAD); one degenerate triangle
   ~10 cm below the camera holder was dropped.
 
 TF tree (all frames fixed except the wheels):
