@@ -43,7 +43,12 @@
 #ifndef BACKGROUNDSUBTRACTOR_H_
 #define BACKGROUNDSUBTRACTOR_H_
 
+// Humble ma len cv_bridge.h, Jazzy len cv_bridge.hpp
+#if __has_include(<cv_bridge/cv_bridge.hpp>)
+#include <cv_bridge/cv_bridge.hpp>
+#else
 #include <cv_bridge/cv_bridge.h>
+#endif
 
 /**
  * @class BackgroundSubtractor

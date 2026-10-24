@@ -9,13 +9,15 @@
 #   ./run.sh --headless      ostatne volby idu do Isaac skriptu
 #                            (--headless, --x, --y, --yaw, --world SUBOR.usd)
 #
-# Obe strany bezia v cistom prostredi len s /opt/ros/humble a tymto ws, aby
+# Obe strany bezia v cistom prostredi len s /opt/ros/$ROS_DISTRO (default
+# jazzy) a tymto ws, aby
 # sa sem nedostal shell z ineho ws ani nastavenie pre realneho robota
 # (RMW_IMPLEMENTATION=rmw_zenoh_cpp ...).
 set -euo pipefail
 
 WS="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ISAACSIM_PATH="${ISAACSIM_PATH:-$HOME/isaacsim}"
+ROS_DISTRO="${ROS_DISTRO:-jazzy}"
 STARTUP_TIMEOUT=600
 
 BUILD=0
@@ -40,7 +42,7 @@ clean_env() {
 
 ros() {
     clean_env RMW_IMPLEMENTATION=rmw_fastrtps_cpp bash -c \
-        "source /opt/ros/humble/setup.bash && source '$WS/install/setup.bash' && $1"
+        "source /opt/ros/$ROS_DISTRO/setup.bash && source '$WS/install/setup.bash' && $1"
 }
 
 if [ ! -x "$ISAACSIM_PATH/python.sh" ]; then
@@ -50,7 +52,7 @@ fi
 
 if [ "$BUILD" = 1 ] || [ ! -f "$WS/install/setup.bash" ]; then
     echo "[run.sh] building $WS"
-    clean_env bash -c "source /opt/ros/humble/setup.bash && cd '$WS' && colcon build --symlink-install"
+    clean_env bash -c "source /opt/ros/$ROS_DISTRO/setup.bash && cd '$WS' && colcon build --symlink-install"
 fi
 
 ISAAC_PID=""
@@ -64,7 +66,7 @@ cleanup() {
 trap cleanup EXIT INT TERM
 
 echo "[run.sh] starting Isaac Sim"
-clean_env setsid "$ISAACSIM_PATH/python.sh" "$WS/src/robocup_sim/isaac/robocup_isaac.py" \
+clean_env ROBOCUP_ROS_DISTRO="$ROS_DISTRO" setsid "$ISAACSIM_PATH/python.sh" "$WS/src/robocup_sim/isaac/robocup_isaac.py" \
     "${ISAAC_ARGS[@]}" &
 ISAAC_PID=$!
 

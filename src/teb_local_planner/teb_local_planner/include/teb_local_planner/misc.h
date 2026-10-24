@@ -43,6 +43,7 @@
 
 #include <Eigen/Core>
 
+#include <cmath>
 #include <exception>
 #include <type_traits>
 
@@ -65,6 +66,29 @@ enum class RotType { left, none, right };
 inline bool is_close(double a, double b, double epsilon = 1e-4) 
 { 
   return std::fabs(a - b) < epsilon; 
+}
+
+/**
+ * @brief Sign of a number (-1, 0 or 1)
+ * @remarks Replaces g2o::sign, which newer g2o (e.g. in ROS 2 Jazzy) no longer provides
+ */
+template <typename T>
+inline int sign(T x)
+{
+  return (x > 0) - (x < 0);
+}
+
+/**
+ * @brief Average of two angles [rad], normalized to [-pi, pi]
+ * @remarks Replaces g2o::average_angle, which newer g2o (e.g. in ROS 2 Jazzy) no longer provides
+ */
+inline double average_angle(double theta1, double theta2)
+{
+  double x = std::cos(theta1) + std::cos(theta2);
+  double y = std::sin(theta1) + std::sin(theta2);
+  if (x == 0 && y == 0)
+    return 0;
+  return std::atan2(y, x);
 }
 
 /** 

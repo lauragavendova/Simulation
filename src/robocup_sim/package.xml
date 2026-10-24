@@ -27,6 +27,8 @@
   <exec_depend>dwb_core</exec_depend>
   <exec_depend>teb_local_planner</exec_depend>
   <exec_depend>slam_toolbox</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
+  <exec_depend>lifecycle_msgs</exec_depend>
 
   <export>
     <build_type>ament_cmake</build_type>

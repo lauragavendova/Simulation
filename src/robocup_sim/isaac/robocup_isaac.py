@@ -9,7 +9,8 @@
 # vibroval, nevedel sa otocit na mieste a prevracal sa.
 #
 # Spusta ho ../../../run.sh. Rucne cez Python Isaacu zo shellu BEZ
-# /opt/ros/humble (bridge ma vlastne Humble kniznice pre Python 3.12):
+# /opt/ros/<distro> (bridge ma vlastne ROS kniznice pre Python 3.12, distro
+# vyberie podla Ubuntu). xacro sa spusta s /opt/ros/$ROBOCUP_ROS_DISTRO (jazzy):
 #   env -i HOME=$HOME DISPLAY=$DISPLAY XAUTHORITY=$XAUTHORITY PATH=/usr/bin:/bin \
 #     ~/isaacsim/python.sh src/robocup_sim/isaac/robocup_isaac.py
 import argparse
@@ -56,6 +57,8 @@ from isaacsim.ros2.nodes import (Ros2ClockGraphConfig, Ros2RtxLidarGraphConfig,
 from isaacsim.sensors.experimental.rtx import Lidar
 from pxr import Gf, Usd, UsdGeom, UsdLux, UsdPhysics, UsdShade
 
+# ROS_DISTRO sa Isaacu nedava, bridge by potom hladal systemove ROS kniznice
+ROS_DISTRO = os.environ.get('ROBOCUP_ROS_DISTRO', 'jazzy')
 PHYSICS_DT = 1.0 / 60.0
 MAX_ACCELERATION = 2.0
 MAX_ANGULAR_ACCELERATION = 2 * MAX_ACCELERATION / 0.48
@@ -129,7 +132,7 @@ def import_robot():
     urdf = os.path.join(out_dir, 'shoddy.urdf')
     xacro_file = os.path.join(WS, 'src/robocup_description/urdf/robot.urdf.xacro')
     subprocess.run(
-        ['bash', '-c', f'source /opt/ros/humble/setup.bash && source {WS}/install/setup.bash '
+        ['bash', '-c', f'source /opt/ros/{ROS_DISTRO}/setup.bash && source {WS}/install/setup.bash '
                        f'&& xacro {xacro_file} > {urdf}'],
         env={'HOME': os.path.expanduser('~'), 'PATH': '/usr/bin:/bin'},
         check=True)

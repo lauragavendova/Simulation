@@ -50,7 +50,12 @@
 #include <rclcpp/rclcpp.hpp>
 
 // OpenCV
+// Humble ma len cv_bridge.h, Jazzy len cv_bridge.hpp
+#if __has_include(<cv_bridge/cv_bridge.hpp>)
+#include <cv_bridge/cv_bridge.hpp>
+#else
 #include <cv_bridge/cv_bridge.h>
+#endif
 #include <opencv2/features2d/features2d.hpp>
 #include <opencv2/video/tracking.hpp>
 

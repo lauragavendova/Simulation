@@ -6,12 +6,16 @@ import os
 
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import (DeclareLaunchArgument, IncludeLaunchDescription,
-                            SetEnvironmentVariable)
+from launch.actions import (DeclareLaunchArgument, EmitEvent, IncludeLaunchDescription,
+                            LogInfo, RegisterEventHandler, SetEnvironmentVariable)
 from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import Command, LaunchConfiguration, PythonExpression
-from launch_ros.actions import Node
+from launch.events import matches_action
+from launch_ros.actions import LifecycleNode, Node
+from launch_ros.event_handlers import OnStateTransition
+from launch_ros.events.lifecycle import ChangeState
+from lifecycle_msgs.msg import Transition
 
 
 def generate_launch_description():
@@ -54,12 +58,31 @@ def generate_launch_description():
                           'cmd_vel_out': '/cmd_vel'}.items(),
         condition=IfCondition(nav),
     )
-    slam = Node(
+    # slam_toolbox je od Jazzy lifecycle node: po starte ho treba nakonfigurovat
+    # a aktivovat, inak zostane unconfigured a nepublikuje /map ani map->odom
+    slam_condition = IfCondition(PythonExpression(
+        ["'", nav, "' == 'true' and '", LaunchConfiguration('slam'), "' == 'true'"]))
+    slam = LifecycleNode(
         package='slam_toolbox', executable='async_slam_toolbox_node',
-        name='slam_toolbox', output='screen',
+        name='slam_toolbox', namespace='', output='screen',
         parameters=[os.path.join(pkg, 'config', 'slam', 'slam_toolbox.yaml'), use_sim_time],
-        condition=IfCondition(PythonExpression(
-            ["'", nav, "' == 'true' and '", LaunchConfiguration('slam'), "' == 'true'"])),
+        condition=slam_condition,
+    )
+    slam_configure = EmitEvent(
+        event=ChangeState(lifecycle_node_matcher=matches_action(slam),
+                          transition_id=Transition.TRANSITION_CONFIGURE),
+        condition=slam_condition,
+    )
+    slam_activate = RegisterEventHandler(
+        OnStateTransition(
+            target_lifecycle_node=slam, start_state='configuring', goal_state='inactive',
+            entities=[
+                LogInfo(msg='[robocup] activating slam_toolbox'),
+                EmitEvent(event=ChangeState(lifecycle_node_matcher=matches_action(slam),
+                                            transition_id=Transition.TRANSITION_ACTIVATE)),
+            ],
+        ),
+        condition=slam_condition,
     )
 
     return LaunchDescription([
@@ -85,4 +108,6 @@ def generate_launch_description():
         steering,
         nav2,
         slam,
+        slam_activate,
+        slam_configure,
     ])
