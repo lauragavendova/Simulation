@@ -226,6 +226,12 @@ base_link                     centre of the body box, 0.1698 m above the floor
 └─ hesai_frame                (0.146, 0, 0.2737), rotation axis, middle of the window
 ```
 
+TF tree of the running simulation (`ros2 run tf2_tools view_frames`, model v2
+with `--nav`): `map → odom` from slam_toolbox, `odom → base_link` from Isaac,
+the rest from robot_state_publisher.
+
+![TF tree of model v2](docs/tf_tree_v2.png)
+
 The origins of `livox_frame` and `hesai_frame` are geometric (housing centre,
 window centre), not yet checked against the vendors' manuals.
 
