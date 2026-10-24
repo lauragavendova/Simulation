@@ -6,6 +6,7 @@
 #   ./run.sh --build         najprv prebuilduje ws
 #   ./run.sh --nav           aj Nav2 + slam_toolbox (ciel cez 2D Goal Pose v RViz)
 #   ./run.sh --nav --planner dwb    lokalny planner: teb (default) | dwb | tr
+#   ./run.sh --model v1      povodny model robota (default v2)
 #   ./run.sh --headless      ostatne volby idu do Isaac skriptu
 #                            (--headless, --x, --y, --yaw, --world SUBOR.usd)
 #
@@ -23,12 +24,14 @@ STARTUP_TIMEOUT=600
 BUILD=0
 NAV=false
 PLANNER=teb
+MODEL=v2
 ISAAC_ARGS=()
 while [ $# -gt 0 ]; do
     case "$1" in
         --build) BUILD=1 ;;
         --nav) NAV=true ;;
         --planner) PLANNER="$2"; shift ;;
+        --model) MODEL="$2"; shift ;;
         *) ISAAC_ARGS+=("$1") ;;
     esac
     shift
@@ -67,7 +70,7 @@ trap cleanup EXIT INT TERM
 
 echo "[run.sh] starting Isaac Sim"
 clean_env ROBOCUP_ROS_DISTRO="$ROS_DISTRO" setsid "$ISAACSIM_PATH/python.sh" "$WS/src/robocup_sim/isaac/robocup_isaac.py" \
-    "${ISAAC_ARGS[@]}" &
+    --model "$MODEL" "${ISAAC_ARGS[@]}" &
 ISAAC_PID=$!
 
 echo "[run.sh] waiting for /clock from Isaac (first start can take minutes)"
@@ -87,7 +90,7 @@ if ((t >= STARTUP_TIMEOUT)); then
 fi
 
 echo "[run.sh] starting ROS 2 side"
-ros "exec ros2 launch robocup_sim robocup.launch.py nav:=$NAV planner:=$PLANNER" &
+ros "exec ros2 launch robocup_sim robocup.launch.py nav:=$NAV planner:=$PLANNER model:=$MODEL" &
 LAUNCH_PID=$!
 
 wait -n "$ISAAC_PID" "$LAUNCH_PID" || true

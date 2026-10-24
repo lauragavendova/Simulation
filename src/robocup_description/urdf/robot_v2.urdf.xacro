@@ -1,0 +1,205 @@
+<?xml version="1.0"?>
+<!--
+  shoddy v2 - body with side suspension brackets carrying the wheels, sensor tower
+  Livox Horizon -> Basler camera in its holder -> Hesai XT16.
+
+  Geometry and positions come from the Fusion export AssemblyMRVK.usdz; the meshes
+  in meshes/v2 are already expressed in their link frames (metres), so every
+  visual has a zero origin. base_link is the centre of the body box, the ground
+  is 0.1698 m below it (WHEEL_RADIUS - SUSPENSION_Z). Masses are taken over from robot.urdf.xacro (v1).
+-->
+<robot name="shoddy" xmlns:xacro="http://wiki.ros.org/xacro">
+
+    <!-- Properties ======================================================== -->
+    <xacro:property name="MESH" value="package://robocup_description/meshes/v2"/>
+
+    <!-- Body box (without the top plate) -->
+    <xacro:property name="BODY_SIZE_X" value="0.47"/>
+    <xacro:property name="BODY_SIZE_Y" value="0.315"/>
+    <xacro:property name="BODY_SIZE_Z" value="0.164"/>
+    <xacro:property name="BODY_MASS" value="30.0"/>
+
+    <!-- Suspension brackets (spojovnik), wheel axles relative to them -->
+    <xacro:property name="SUSPENSION_Y" value="0.205"/>
+    <xacro:property name="SUSPENSION_Z" value="-0.060"/>
+    <xacro:property name="WHEEL_X" value="0.151"/>
+    <xacro:property name="WHEEL_Y" value="${0.2385 - SUSPENSION_Y}"/>
+
+    <!-- Wheels -->
+    <xacro:property name="WHEEL_RADIUS" value="0.1098"/>
+    <xacro:property name="WHEEL_WIDTH" value="0.068"/>
+    <xacro:property name="WHEEL_MASS" value="0.5"/>
+
+    <!-- Sensors (base_link frame) -->
+    <xacro:property name="LIVOX_XYZ" value="0.150 0.0 0.1285"/>
+    <xacro:property name="HOLDER_XYZ" value="0.1501 0.0 0.1705"/>
+    <xacro:property name="CAMERA_XYZ" value="0.0262 0.0 0.0304"/>  <!-- in camera_holder_link -->
+    <xacro:property name="CAMERA_PITCH" value="${radians(10.0)}"/>  <!-- tilted down -->
+    <xacro:property name="HESAI_XYZ" value="0.146 0.0 0.2737"/>
+    <!-- ======================================================== Properties -->
+
+
+    <!-- Macros ============================================================ -->
+    <xacro:macro name="no_inertia">
+        <inertial>
+            <mass value="0.0"/>
+            <inertia ixx="0.0" ixy="0.0" ixz="0.0" iyy="0.0" iyz="0.0" izz="0.0"/>
+        </inertial>
+    </xacro:macro>
+
+    <xacro:macro name="mesh_visual" params="file">
+        <visual>
+            <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0"/>
+            <geometry>
+                <mesh filename="${MESH}/${file}.dae"/>
+            </geometry>
+        </visual>
+    </xacro:macro>
+
+    <xacro:macro name="fixed_joint" params="name parent child xyz rpy:='0.0 0.0 0.0'">
+        <joint name="${name}" type="fixed">
+            <origin xyz="${xyz}" rpy="${rpy}"/>
+            <parent link="${parent}"/>
+            <child link="${child}"/>
+        </joint>
+    </xacro:macro>
+
+    <xacro:macro name="suspension" params="side reflect">
+        <link name="suspension_${side}_link">
+            <xacro:mesh_visual file="suspension_${side}"/>
+            <xacro:no_inertia/>
+        </link>
+        <xacro:fixed_joint name="suspension_${side}_joint" parent="base_link"
+                           child="suspension_${side}_link"
+                           xyz="0.0 ${reflect * SUSPENSION_Y} ${SUSPENSION_Z}"/>
+
+        <xacro:wheel side="${side}" part="front" reflect="${reflect}" x="${WHEEL_X}"/>
+        <xacro:wheel side="${side}" part="rear" reflect="${reflect}" x="${-WHEEL_X}"/>
+    </xacro:macro>
+
+    <!-- The wheel mesh is the left wheel, the right ones are turned by pi about X -->
+    <xacro:macro name="wheel" params="side part reflect x">
+        <link name="wheel_${side}_${part}_link">
+            <visual>
+                <origin xyz="0.0 0.0 0.0" rpy="${(1 - reflect) / 2 * pi} 0.0 0.0"/>
+                <geometry>
+                    <mesh filename="${MESH}/wheel.dae"/>
+                </geometry>
+            </visual>
+
+            <collision>
+                <origin xyz="0.0 0.0 0.0" rpy="${pi/2} 0.0 0.0"/>
+                <geometry>
+                    <cylinder radius="${WHEEL_RADIUS}" length="${WHEEL_WIDTH}"/>
+                </geometry>
+            </collision>
+
+            <inertial>
+                <mass value="${WHEEL_MASS}"/>
+                <inertia ixx="${WHEEL_MASS / 12 * (3 * WHEEL_RADIUS**2 + WHEEL_WIDTH**2)}" ixy="0.0" ixz="0.0"
+                         iyy="${WHEEL_MASS / 2 * WHEEL_RADIUS**2}" iyz="0.0"
+                         izz="${WHEEL_MASS / 12 * (3 * WHEEL_RADIUS**2 + WHEEL_WIDTH**2)}"/>
+            </inertial>
+        </link>
+
+        <joint name="wheel_${side}_${part}_joint" type="continuous">
+            <axis xyz="0.0 1.0 0.0"/>
+            <origin xyz="${x} ${reflect * WHEEL_Y} 0.0" rpy="0.0 0.0 0.0"/>
+            <parent link="suspension_${side}_link"/>
+            <child link="wheel_${side}_${part}_link"/>
+        </joint>
+    </xacro:macro>
+    <!-- ============================================================ Macros -->
+
+
+    <!-- Body ============================================================== -->
+    <link name="base_link">
+        <xacro:mesh_visual file="main_body"/>
+
+        <collision>
+            <origin xyz="0.0 0.0 ${(BODY_SIZE_Z - 0.160) / 2}" rpy="0.0 0.0 0.0"/>
+            <geometry>
+                <box size="${BODY_SIZE_X} ${BODY_SIZE_Y} ${BODY_SIZE_Z}"/>
+            </geometry>
+        </collision>
+
+        <inertial>
+            <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0"/>
+            <mass value="${BODY_MASS}"/>
+            <inertia ixx="${BODY_MASS / 12 * (BODY_SIZE_Y**2 + BODY_SIZE_Z**2)}" ixy="0.0" ixz="0.0"
+                     iyy="${BODY_MASS / 12 * (BODY_SIZE_X**2 + BODY_SIZE_Z**2)}" iyz="0.0"
+                     izz="${BODY_MASS / 12 * (BODY_SIZE_X**2 + BODY_SIZE_Y**2)}"/>
+        </inertial>
+    </link>
+
+    <!-- IMU - no measured position yet, kept at the origin of base_link -->
+    <link name="imu_frame">
+        <xacro:no_inertia/>
+    </link>
+    <xacro:fixed_joint name="imu_joint" parent="base_link" child="imu_frame" xyz="0.0 0.0 0.0"/>
+    <!-- ============================================================== Body -->
+
+
+    <!-- Suspension and wheels ============================================= -->
+    <xacro:suspension side="left" reflect="1"/>
+    <xacro:suspension side="right" reflect="-1"/>
+    <!-- ============================================= Suspension and wheels -->
+
+
+    <!-- Sensors =========================================================== -->
+    <!-- Livox Horizon (3D lidar with built-in IMU), frame in the centre of its housing -->
+    <link name="livox_frame">
+        <xacro:mesh_visual file="livox_horizon"/>
+        <collision>
+            <geometry>
+                <box size="0.115 0.077 0.084"/>
+            </geometry>
+        </collision>
+        <xacro:no_inertia/>
+    </link>
+    <xacro:fixed_joint name="livox_joint" parent="base_link" child="livox_frame" xyz="${LIVOX_XYZ}"/>
+
+    <!-- Camera holder, frame at the centre of its base plate -->
+    <link name="camera_holder_link">
+        <xacro:mesh_visual file="camera_holder"/>
+        <collision>
+            <origin xyz="0.0 0.0 0.028" rpy="0.0 0.0 0.0"/>
+            <geometry>
+                <box size="0.110 0.104 0.056"/>
+            </geometry>
+        </collision>
+        <xacro:no_inertia/>
+    </link>
+    <xacro:fixed_joint name="camera_holder_joint" parent="base_link" child="camera_holder_link"
+                       xyz="${HOLDER_XYZ}"/>
+
+    <!-- Basler a2A1920-160ucPRO, frame at the centre of the front face (lens mount),
+         x along the optical axis -->
+    <link name="camera_link">
+        <xacro:mesh_visual file="camera"/>
+        <xacro:no_inertia/>
+    </link>
+    <xacro:fixed_joint name="camera_joint" parent="camera_holder_link" child="camera_link"
+                       xyz="${CAMERA_XYZ}" rpy="0.0 ${CAMERA_PITCH} 0.0"/>
+
+    <!-- Optical frame (REP 103) - z forward, x right, y down -->
+    <link name="camera_optical_frame">
+        <xacro:no_inertia/>
+    </link>
+    <xacro:fixed_joint name="camera_optical_joint" parent="camera_link" child="camera_optical_frame"
+                       xyz="0.0 0.0 0.0" rpy="${-pi/2} 0.0 ${-pi/2}"/>
+
+    <!-- Hesai XT16, frame on the rotation axis at the middle of the optical window -->
+    <link name="hesai_frame">
+        <xacro:mesh_visual file="hesai_xt16"/>
+        <collision>
+            <origin xyz="0.0 0.0 -0.0097" rpy="0.0 0.0 0.0"/>
+            <geometry>
+                <cylinder radius="0.0515" length="0.076"/>
+            </geometry>
+        </collision>
+        <xacro:no_inertia/>
+    </link>
+    <xacro:fixed_joint name="hesai_joint" parent="base_link" child="hesai_frame" xyz="${HESAI_XYZ}"/>
+    <!-- =========================================================== Sensors -->
+</robot>

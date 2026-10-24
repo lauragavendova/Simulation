@@ -1,7 +1,10 @@
 # Isaac Sim strana simulacie: nacita arenu z USD, importuje robota shoddy
 # z xacro v robocup_description a napoji ho na ROS 2:
-#   von: /clock, /odom + TF odom->base_link, /scan_raw (LaserScan, frame
-#        lidar_frame; robocup.launch.py ho preposiela na /scan)
+#   von: /clock, /odom + TF odom->base_link a senzory podla modelu:
+#        v1 (robot.urdf.xacro): 2D lidar Hokuyo -> /scan_raw (frame lidar_frame,
+#           robocup.launch.py ho preposiela na /scan)
+#        v2 (robot_v2.urdf.xacro): Hesai XT16, Livox Horizon s IMU a kamera
+#           Basler, vid robocup_sensors.py
 #   dnu: /cmd_vel
 #
 # Podvozok je kinematicky: cmd_vel sa nastavi priamo ako rychlost tela a kolesa
@@ -33,6 +36,7 @@ parser.add_argument('--headless', action='store_true')
 parser.add_argument('--x', type=float, default=0.0)
 parser.add_argument('--y', type=float, default=0.0)
 parser.add_argument('--yaw', type=float, default=0.0)
+parser.add_argument('--model', choices=['v1', 'v2'], default='v2', help='Model robota')
 parser.add_argument('--frames', type=int, default=0,
                     help='Skonci po tolkych snimkach (0 = bez konca)')
 args, _ = parser.parse_known_args()
@@ -59,6 +63,10 @@ from pxr import Gf, Usd, UsdGeom, UsdLux, UsdPhysics, UsdShade
 
 # ROS_DISTRO sa Isaacu nedava, bridge by potom hladal systemove ROS kniznice
 ROS_DISTRO = os.environ.get('ROBOCUP_ROS_DISTRO', 'jazzy')
+# model -> xacro v robocup_description/urdf
+MODELS = {'v1': 'robot.urdf.xacro', 'v2': 'robot_v2.urdf.xacro'}
+XACRO = MODELS[args.model]
+SCAN_FRAME = 'lidar_frame'  # 2D lidar modelu v1
 PHYSICS_DT = 1.0 / 60.0
 MAX_ACCELERATION = 2.0
 MAX_ANGULAR_ACCELERATION = 2 * MAX_ACCELERATION / 0.48
@@ -130,7 +138,7 @@ def import_robot():
     shutil.rmtree(out_dir, ignore_errors=True)
     os.makedirs(out_dir)
     urdf = os.path.join(out_dir, 'shoddy.urdf')
-    xacro_file = os.path.join(WS, 'src/robocup_description/urdf/robot.urdf.xacro')
+    xacro_file = os.path.join(WS, 'src/robocup_description/urdf', XACRO)
     subprocess.run(
         ['bash', '-c', f'source /opt/ros/{ROS_DISTRO}/setup.bash && source {WS}/install/setup.bash '
                        f'&& xacro {xacro_file} > {urdf}'],
@@ -148,15 +156,15 @@ def import_robot():
     usd_file = URDFImporter(cfg).import_urdf()
     if not usd_file:
         raise RuntimeError(f'URDF import failed for {urdf}')
-    return usd_file, lidar_offset(urdf)
+    return usd_file, urdf
 
 
 def lidar_offset(urdf):
     for joint in ET.parse(urdf).getroot().iter('joint'):
-        if joint.find('child').get('link') == 'lidar_frame':
+        if joint.find('child').get('link') == SCAN_FRAME:
             assert joint.find('parent').get('link') == 'base_link'
             return [float(v) for v in joint.find('origin').get('xyz').split()]
-    raise RuntimeError(f'no joint to lidar_frame in {urdf}')
+    raise RuntimeError(f'no joint to {SCAN_FRAME} in {urdf}')
 
 
 def find_prims(root_prim):
@@ -262,7 +270,7 @@ def main():
 
     build_world(stage, args.world)
 
-    usd_file, lidar_xyz = import_robot()
+    usd_file, urdf = import_robot()
     spawn = UsdGeom.Xform.Define(stage, '/World/shoddy')
     UsdGeom.XformCommonAPI(spawn).SetTranslate((args.x, args.y, BASE_HEIGHT))
     UsdGeom.XformCommonAPI(spawn).SetRotate((0.0, 0.0, math.degrees(args.yaw)))
@@ -272,22 +280,29 @@ def main():
     make_frictionless(stage, robot)
     simulation_app.update()
     articulation, base_link = find_prims(robot)
-    print(f'[robocup_isaac] articulation={articulation} base_link={base_link} lidar_xyz={lidar_xyz}')
+    print(f'[robocup_isaac] model={args.model} articulation={articulation} base_link={base_link}')
 
-    lidar_path = base_link + '/rtx_lidar'
-    Lidar.create(path=lidar_path, config='Example_Rotary_2D', tick_rate=10.0,
-                 translations=[lidar_xyz],
-                 attributes={'omni:sensor:Core:nearRangeM': 0.15,
-                             'omni:sensor:Core:farRangeM': 4.0})
+    if args.model == 'v1':
+        lidar_path = base_link + '/rtx_lidar'
+        Lidar.create(path=lidar_path, config='Example_Rotary_2D', tick_rate=10.0,
+                     translations=[lidar_offset(urdf)],
+                     attributes={'omni:sensor:Core:nearRangeM': 0.15,
+                                 'omni:sensor:Core:farRangeM': 4.0})
+    else:
+        import robocup_sensors
+        sensors = robocup_sensors.create_sensors(stage, base_link, urdf)
 
     SimulationManager.setup_simulation(dt=PHYSICS_DT, device='cpu')
     simulation_app.update()
 
     create_ros2_clock_graph(Ros2ClockGraphConfig(graph_path='/Graph/ROS_Clock'))
     create_base_graph(articulation)
-    create_ros2_rtx_lidar_graph(Ros2RtxLidarGraphConfig(
-        graph_path='/Graph/ROS_Lidar', lidar_prim=lidar_path,
-        frame_id='lidar_frame', laser_scan_topic='/scan_raw'))
+    if args.model == 'v1':
+        create_ros2_rtx_lidar_graph(Ros2RtxLidarGraphConfig(
+            graph_path='/Graph/ROS_Lidar', lidar_prim=lidar_path,
+            frame_id=SCAN_FRAME, laser_scan_topic='/scan_raw'))
+    else:
+        robocup_sensors.create_sensor_graphs(sensors)
     simulation_app.update()
 
     app_utils.play()

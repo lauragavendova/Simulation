@@ -138,7 +138,6 @@ local_costmap:
         observation_sources: sim_scan_marking sim_scan_clearing
         sim_scan_marking:
           topic: /scan
-          sensor_frame: lidar_frame
           data_type: "LaserScan"
           marking: true
           clearing: false
@@ -149,7 +148,6 @@ local_costmap:
           max_obstacle_height: 2.0
         sim_scan_clearing:
           topic: /scan
-          sensor_frame: lidar_frame
           data_type: "LaserScan"
           marking: false
           clearing: true
@@ -190,7 +188,6 @@ global_costmap:
         observation_sources: sim_scan_marking sim_scan_clearing
         sim_scan_marking:
           topic: /scan
-          sensor_frame: lidar_frame
           data_type: "LaserScan"
           marking: true
           clearing: false
@@ -201,7 +198,6 @@ global_costmap:
           max_obstacle_height: 2.0
         sim_scan_clearing:
           topic: /scan
-          sensor_frame: lidar_frame
           data_type: "LaserScan"
           marking: false
           clearing: true
